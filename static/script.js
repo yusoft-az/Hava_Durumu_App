@@ -24,16 +24,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const hkiElementi = document.getElementById('hki-deger');
     const hkiKonteyneri = document.getElementById('hki-konteyneri');
 
-    const API_TEMEL_URL = "http://localhost:5000"; // Veya sunucu adresiniz
+    // --- API URL DEĞİŞİKLİĞİ BURADA ---
+    // Backend API'nizin canlı Render adresini buraya yazın
+    const API_TEMEL_URL = "https://hava-durumu-app.onrender.com";
+    // --- API URL DEĞİŞİKLİĞİ SONU ---
+
     let oneriBekletmeZamanlayici;
     const BEKLETME_GECIKMESI = 350;
-    // --- DEĞİŞİKLİK BURADA ---
-    const ARKA_PLAN_TEMEL_YOLU = "/static/gifs/"; // Başına / eklendi
-    // --- DEĞİŞİKLİK SONU ---
-    const VARSAYILAN_ARKA_PLAN_ADI = "1.jpg"; // Varsayılan arka planınızın static/gifs/ içinde olduğundan emin olun
 
+    // --- ARKA PLAN YOLU DEĞİŞİKLİĞİ BURADA ---
+    // Static Site'nizin kök dizinine göre giflerin yolunu belirtin
+    // Eğer 'gifs' klasörü index.html ile aynı dizindeyse, bu doğru olmalı.
+    const ARKA_PLAN_TEMEL_YOLU = "/static/gifs/"; // Baştaki / kaldırıldı (göreli yol)
+    // --- ARKA PLAN YOLU DEĞİŞİKLİĞİ SONU ---
+    const VARSAYILAN_ARKA_PLAN_ADI = "1.jpg"; // Bu dosyanın 'gifs' klasöründe olduğundan emin olun
+
+    // --- Yardımcı Fonksiyonlar (Değişiklik Yok) ---
     function zamaniBicimlendir(zamanDamgasi, saatDilimiOfsetiSaniye = null) {
         if (!zamanDamgasi) return '--:--';
+        // Not: saatDilimiOfsetiSaniye şu an kullanılmıyor ama ileride gerekebilir.
+        // Şimdilik kullanıcının tarayıcı saat dilimini kullanıyoruz.
         const tarih = new Date(zamanDamgasi * 1000);
         return tarih.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', hour12: false });
     }
@@ -68,17 +78,19 @@ document.addEventListener('DOMContentLoaded', () => {
         `;
     }
 
+    // --- Ana API Çağrı Fonksiyonları ---
     async function havaDurumuGetir(sehir = null, ulke = '', enlem = null, boylam = null) {
         hatayiGizle();
         yukleniyorYerTutuculariGoster();
         oneriListesi.style.display = 'none';
 
+        // API_TEMEL_URL artık doğru backend adresini içeriyor
         let url = `${API_TEMEL_URL}/weather?`;
         const parametreler = new URLSearchParams();
         if (enlem !== null && boylam !== null) {
             parametreler.append('lat', enlem);
             parametreler.append('lon', boylam);
-            if (sehir) parametreler.append('city', sehir); // Koordinat olsa bile şehir adını gönderebiliriz
+            if (sehir) parametreler.append('city', sehir);
             if (ulke) parametreler.append('country', ulke);
         } else if (sehir) {
             parametreler.append('city', sehir);
@@ -89,36 +101,88 @@ document.addEventListener('DOMContentLoaded', () => {
             yukleniyorYerTutuculariGizle();
             return;
         }
+        parametreler.append('lang', 'tr'); // Dili de gönderelim (opsiyonel)
+        parametreler.append('units', 'metric'); // Birimleri de gönderelim (opsiyonel)
         url += parametreler.toString();
 
-        console.log("İstek URL:", url);
+        console.log("İstek URL:", url); // Konsolda isteği kontrol et
 
         try {
             const yanit = await fetch(url);
             const veri = await yanit.json();
 
+            console.log("API Yanıtı:", veri); // Konsolda gelen veriyi kontrol et
+
             if (!yanit.ok) {
+                // Yanıt OK değilse (örn. 404, 500), backend'den gelen hata mesajını kullan
                 throw new Error(veri.message || `Sunucu hatası (${yanit.status})`);
             }
 
             if (veri.success) {
                 arayuzuGuncelle(veri);
+                yukleniyorYerTutuculariGizle(); // Başarılıysa yükleniyoru gizle
             } else {
-                throw new Error(veri.message || "Bilinmeyen bir API hatası oluştu.");
+                // Yanıt OK ama success: false ise (örn. şehir bulunamadı)
+                throw new Error(veri.message || "API'den beklenen veri alınamadı.");
             }
         } catch (hata) {
             console.error("Hava durumu alınırken hata:", hata);
-            hataGoster(`Hata: ${hata.message}`);
+            hataGoster(`Hata: ${hata.message}. Lütfen girdiğiniz bilgileri veya API bağlantısını kontrol edin.`);
             arayuzuTemizle(false); // Arka planı sıfırlama
-            yukleniyorYerTutuculariGizle();
+            yukleniyorYerTutuculariGizle(); // Hata durumunda yükleniyoru gizle
         }
     }
+
+    async function onerileriGetir(sorgu) {
+        if (sorgu.length < 2) {
+            oneriListesi.innerHTML = '';
+            oneriListesi.style.display = 'none';
+            return;
+        }
+        try {
+            // API_TEMEL_URL artık doğru backend adresini içeriyor
+            const url = `${API_TEMEL_URL}/suggestions?q=${encodeURIComponent(sorgu)}&lang=tr`;
+            console.log("Öneri İstek URL:", url); // Konsolda isteği kontrol et
+
+            const yanit = await fetch(url);
+
+            if (!yanit.ok) {
+                // Sunucudan gelen detaylı hatayı almaya çalışalım (varsa)
+                let hataMesaji = `Öneriler alınamadı (${yanit.status})`;
+                try {
+                    const hataVerisi = await yanit.json();
+                    if (hataVerisi && hataVerisi.error) {
+                        hataMesaji = hataVerisi.error;
+                    } else if (hataVerisi && hataVerisi.message) {
+                         hataMesaji = hataVerisi.message; // Backend'den gelen message'ı kullan
+                    }
+                } catch (jsonHata) {
+                    // Yanıt JSON değilse ignore et
+                }
+                throw new Error(hataMesaji);
+            }
+
+            const oneriler = await yanit.json();
+            console.log("Öneri Yanıtı:", oneriler); // Konsolda gelen önerileri kontrol et
+            onerileriGoster(oneriler);
+
+        } catch (hata) {
+            console.error("Öneri hatası:", hata);
+            // Kullanıcıya hata göstermeyebiliriz, sadece konsola yazmak yeterli olabilir
+            oneriListesi.innerHTML = '';
+            oneriListesi.style.display = 'none';
+        }
+    }
+
+
+    // --- Arayüz Güncelleme Fonksiyonları (Çoğunlukla Aynı) ---
 
     function arayuzuGuncelle(veri) {
         hatayiGizle();
 
-        // Arka planı ayarla (Doğru yol şimdi kullanılacak)
+        // Arka planı ayarla (Güncellenmiş yol ile)
         const arkaPlanResimAdi = veri.current?.background_image || VARSAYILAN_ARKA_PLAN_ADI;
+        // URL'yi tırnak içine almayı unutma ve doğru yolu kullan
         document.body.style.backgroundImage = `url('${ARKA_PLAN_TEMEL_YOLU}${arkaPlanResimAdi}')`;
 
         sehirAdiElementi.textContent = `${veri.city?.name || 'Bilinmeyen Şehir'}${veri.city?.country ? ', ' + veri.city.country : ''}`;
@@ -128,7 +192,6 @@ document.addEventListener('DOMContentLoaded', () => {
             ? `↓ ${Math.round(veri.current.temp_min)}°   ↑ ${Math.round(veri.current.temp_max)}°`
             : '↓ --°   ↑ --°';
 
-        // Güncel ikonu ayarla (OpenWeatherMap URL'si)
         if (veri.current?.icon) {
             guncelIkonElementi.src = `https://openweathermap.org/img/wn/${veri.current.icon}@4x.png`;
             guncelIkonElementi.alt = veri.current?.desc || 'Hava durumu ikonu';
@@ -137,39 +200,35 @@ document.addEventListener('DOMContentLoaded', () => {
             guncelIkonElementi.style.display = 'none';
         }
 
-        // Diğer detayları güncelle
         if (hissedilenElementi) hissedilenElementi.innerHTML = veri.current?.feels_like !== null ? `${Math.round(veri.current.feels_like)}<span class="birim">°C</span>` : '--';
         if (nemElementi) nemElementi.innerHTML = veri.current?.humidity !== null ? `${veri.current.humidity}<span class="birim">%</span>` : '--';
         if (ruzgarElementi) {
             const hiz_mps = veri.current?.wind_speed;
             const hiz_kmh = hiz_mps !== null ? Math.round(hiz_mps * 3.6) : '--';
             const yon = ruzgarDerecesiniYoneCevir(veri.current?.wind_deg);
-            ruzgarElementi.innerHTML = `${hiz_kmh}<span class="birim">km/h</span> ${yon}`;
+            ruzgarElementi.innerHTML = `${hiz_kmh}<span class="birim">km/s</span> ${yon}`;
         }
         if (gorusMesafesiElementi) gorusMesafesiElementi.textContent = gorusMesafesiniBicimlendir(veri.current?.visibility) || '--';
         if (basincElementi) basincElementi.innerHTML = basinciBicimlendir(veri.current?.pressure) || '--';
         if (gunDogumuElementi) gunDogumuElementi.textContent = zamaniBicimlendir(veri.current?.sunrise) || '--:--';
         if (gunBatimiElementi) gunBatimiElementi.textContent = zamaniBicimlendir(veri.current?.sunset) || '--:--';
 
-        // Hava Kalitesi İndeksini güncelle
         if (hkiKonteyneri && hkiElementi) {
              if (veri.aqi) {
                  hkiElementi.textContent = `${veri.aqi.level} (${veri.aqi.index})`;
                  hkiElementi.style.backgroundColor = veri.aqi.color || 'transparent';
-                  // Okunabilirlik için açık renklerde koyu, koyu renklerde açık yazı rengi
                  hkiElementi.style.color = (veri.aqi.color === '#FDD74F' || veri.aqi.color === '#A8E05F') ? '#333' : '#fff';
-                 hkiKonteyneri.style.display = 'flex'; // flex kullanmak daha iyi olabilir
+                 hkiKonteyneri.style.display = 'flex';
              } else {
                  hkiKonteyneri.style.display = 'none';
              }
         }
 
-        // Saatlik tahmini güncelle (OpenWeatherMap ikon URL'leri ile)
         saatlikOgelerKonteyneri.innerHTML = '';
         if (veri.hourly && veri.hourly.length > 0) {
             veri.hourly.forEach(saat => {
-                const yagisSans = saat.pop !== null ? Math.round(saat.pop) : 0; // pop burada yüzdelik değil, 0-1 arası
-                const yagisSansYuzde = Math.round(yagisSans * 100); // Yüzdeye çevir
+                // Backend'den gelen 'pop' değeri 0-100 arası gelmeli (Python kodunda çevrildi)
+                const yagisSansYuzde = saat.pop !== null ? Math.round(saat.pop) : 0;
                 const saatlikOgeHTML = `
                     <div class="saatlik-oge">
                         <span class="zaman">${zamaniBicimlendir(saat.dt) || '--:--'}</span>
@@ -179,15 +238,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>`;
                 saatlikOgelerKonteyneri.innerHTML += saatlikOgeHTML;
             });
+            saatlikBlok.style.display = 'block'; // Veri varsa göster
         } else {
-            saatlikOgelerKonteyneri.innerHTML = '<div class="yukleniyor-yer-tutucu">Saatlik veri yok</div>';
+            saatlikOgelerKonteyneri.innerHTML = '<div class="veri-yok-mesaji">Saatlik tahmin verisi bulunamadı.</div>';
+            saatlikBlok.style.display = 'none'; // Veri yoksa gizle
         }
 
-        // Günlük tahmini güncelle (OpenWeatherMap ikon URL'leri ile)
         gunlukOgelerKonteyneri.innerHTML = '';
         if (veri.daily && veri.daily.length > 0) {
             veri.daily.forEach(gun => {
-                 // Backend'den gelen 'pop' değerinin zaten 0-100 arası olduğunu varsayıyoruz (Python'da işlenmişti)
                  const yagisSansYuzde = gun.pop !== null ? Math.round(gun.pop) : 0;
                 const gunlukOgeHTML = `
                     <div class="gunluk-oge">
@@ -201,32 +260,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>`;
                 gunlukOgelerKonteyneri.innerHTML += gunlukOgeHTML;
             });
+            gunlukBlok.style.display = 'block'; // Veri varsa göster
         } else {
-            gunlukOgelerKonteyneri.innerHTML = '<div class="yukleniyor-yer-tutucu">Günlük veri yok</div>';
+            gunlukOgelerKonteyneri.innerHTML = '<div class="veri-yok-mesaji">Günlük tahmin verisi bulunamadı.</div>';
+            gunlukBlok.style.display = 'none'; // Veri yoksa gizle
         }
 
-        // Alanları göster
-        guncelBilgiAlani.style.display = 'block';
-        saatlikBlok.style.display = 'block';
-        gunlukBlok.style.display = 'block';
-    }
-
-    async function onerileriGetir(sorgu) {
-        if (sorgu.length < 2) {
-            oneriListesi.innerHTML = '';
-            oneriListesi.style.display = 'none';
-            return;
-        }
-        try {
-            const yanit = await fetch(`${API_TEMEL_URL}/suggestions?q=${encodeURIComponent(sorgu)}`);
-            if (!yanit.ok) throw new Error('Öneriler alınamadı.');
-            const oneriler = await yanit.json();
-            onerileriGoster(oneriler);
-        } catch (hata) {
-            console.error("Öneri hatası:", hata);
-            oneriListesi.innerHTML = '';
-            oneriListesi.style.display = 'none';
-        }
+        guncelBilgiAlani.style.display = 'block'; // Ana bilgileri göster
     }
 
     function onerileriGoster(oneriler) {
@@ -238,13 +278,12 @@ document.addEventListener('DOMContentLoaded', () => {
         oneriler.forEach(oneri => {
             const ogeDiv = document.createElement('div');
             ogeDiv.classList.add('oneri-ogesi');
-            ogeDiv.textContent = oneri.display; // Backend'den gelen 'display' adı
+            ogeDiv.textContent = oneri.display;
             ogeDiv.addEventListener('click', () => {
-                 // Öneriden gelen name, country, lat, lon bilgilerini kullan
-                sehirGirdisi.value = oneri.local_name || oneri.name; // Varsa yerel adı, yoksa normal adı kullan
+                sehirGirdisi.value = oneri.local_name || oneri.name;
                 oneriListesi.innerHTML = '';
                 oneriListesi.style.display = 'none';
-                 // Hava durumu isteğini koordinatlarla yapmak genellikle daha doğrudur
+                // Öneriden gelen koordinatlarla hava durumu isteği yap
                 havaDurumuGetir(oneri.local_name || oneri.name, oneri.country, oneri.lat, oneri.lon);
             });
             oneriListesi.appendChild(ogeDiv);
@@ -258,14 +297,23 @@ document.addEventListener('DOMContentLoaded', () => {
         oneriBekletmeZamanlayici = setTimeout(fonk, gecikme);
     }
 
+    // --- Hata ve Arayüz Yönetimi (Çoğunlukla Aynı) ---
     function hataGoster(mesaj) {
         hataMesajiElementi.textContent = mesaj;
         hataMesajiElementi.style.display = 'block';
-        yukleniyorYerTutuculariGizle(); // Hata varsa yükleniyorları gizle
-         // Hata durumunda bazı temel bilgileri temizle ama her şeyi değil
+        yukleniyorYerTutuculariGizle();
+         // Hata durumunda sadece gerekli alanları gizle/temizle
          guncelBilgiAlani.style.display = 'none';
          saatlikBlok.style.display = 'none';
          gunlukBlok.style.display = 'none';
+         saatlikOgelerKonteyneri.innerHTML = '';
+         gunlukOgelerKonteyneri.innerHTML = '';
+          // Belki şehir adını ve min/max'ı da temizlemek iyi olabilir
+          sehirAdiElementi.textContent = '--';
+          minMaksSicaklikElementi.textContent = '↓ --°   ↑ --°';
+          guncelSicaklikElementi.textContent = '--°';
+          guncelAciklamaElementi.textContent = '---';
+          guncelIkonElementi.style.display = 'none';
     }
     function hatayiGizle() {
         hataMesajiElementi.textContent = '';
@@ -273,10 +321,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function arayuzuTemizle(arkaPlaniSifirla = true) {
+        hatayiGizle(); // Temizlerken hatayı da gizle
         sehirAdiElementi.textContent = '--';
         guncelSicaklikElementi.textContent = '--°';
         guncelIkonElementi.style.display = 'none';
-        guncelIkonElementi.src = ''; // İkon src'sini temizle
+        guncelIkonElementi.src = '';
         guncelAciklamaElementi.textContent = '---';
         minMaksSicaklikElementi.textContent = '↓ --°   ↑ --°';
 
@@ -290,73 +339,68 @@ document.addEventListener('DOMContentLoaded', () => {
         if (hkiKonteyneri) hkiKonteyneri.style.display = 'none';
         if (hkiElementi) {
             hkiElementi.textContent = '--';
-            hkiElementi.style.backgroundColor = 'transparent'; // Rengi de sıfırla
-             hkiElementi.style.color = '#fff'; // Yazı rengini de sıfırla
+            hkiElementi.style.backgroundColor = 'transparent';
+             hkiElementi.style.color = '#fff';
         }
 
         guncelBilgiAlani.style.display = 'none';
         saatlikBlok.style.display = 'none';
         gunlukBlok.style.display = 'none';
-        saatlikOgelerKonteyneri.innerHTML = ''; // İçerikleri temizle
-        gunlukOgelerKonteyneri.innerHTML = ''; // İçerikleri temizle
+        saatlikOgelerKonteyneri.innerHTML = '';
+        gunlukOgelerKonteyneri.innerHTML = '';
 
         if (arkaPlaniSifirla) {
-            // Varsayılan arka planı ayarla (Doğru yol şimdi kullanılacak)
             document.body.style.backgroundImage = `url('${ARKA_PLAN_TEMEL_YOLU}${VARSAYILAN_ARKA_PLAN_ADI}')`;
         }
     }
 
     function yukleniyorYerTutuculariGoster() {
-        // Önce mevcut durumu temizle (arka plan hariç)
-        arayuzuTemizle(false);
+        arayuzuTemizle(false); // Arka plan hariç temizle
 
-        // Ana bilgileri yükleniyor olarak ayarla
-        guncelBilgiAlani.style.display = 'block'; // Ana bilgi alanını göster
-        sehirAdiElementi.textContent = 'Konum aranıyor...'; // Daha açıklayıcı mesaj
+        guncelBilgiAlani.style.display = 'block';
+        sehirAdiElementi.textContent = 'Konum aranıyor/Yükleniyor...'; // Güncel durum
         guncelSicaklikElementi.textContent = '..°';
         guncelAciklamaElementi.textContent = '...';
-        minMaksSicaklikElementi.textContent = ''; // Yüklenirken min/max gösterme
+        minMaksSicaklikElementi.textContent = ''; // Yüklenirken gösterme
 
-        // Tahmin bloklarına yükleniyor göstergesi koy
         saatlikOgelerKonteyneri.innerHTML = yuklemeGostergesiOlustur();
         gunlukOgelerKonteyneri.innerHTML = yuklemeGostergesiOlustur();
 
-        // Tahmin bloklarını görünür yap
         saatlikBlok.style.display = 'block';
         gunlukBlok.style.display = 'block';
     }
 
     function yukleniyorYerTutuculariGizle() {
-       // Sadece yükleniyor göstergelerini kaldır, diğer içerik zaten arayuzuGuncelle ile gelecek
+       // Sadece yükleniyor göstergelerini temizle
        const saatlikYukleniyor = saatlikOgelerKonteyneri.querySelector('.yukleniyor-gostergesi');
        if (saatlikYukleniyor) {
-           saatlikOgelerKonteyneri.innerHTML = ''; // Veya spesifik olarak göstergeyi kaldır: saatlikYukleniyor.remove();
+           saatlikOgelerKonteyneri.innerHTML = '';
        }
         const gunlukYukleniyor = gunlukOgelerKonteyneri.querySelector('.yukleniyor-gostergesi');
        if (gunlukYukleniyor) {
-            gunlukOgelerKonteyneri.innerHTML = ''; // Veya spesifik olarak göstergeyi kaldır: gunlukYukleniyor.remove();
+            gunlukOgelerKonteyneri.innerHTML = '';
        }
+       // Eğer hata yoksa, arayuzuGuncelle zaten içerikleri dolduracak.
+       // Eğer hata varsa, hataGoster zaten blokları gizlemiş olmalı.
     }
 
-    // --- Event Listeners ---
+    // --- Event Listeners (Değişiklik Yok) ---
 
     aramaButonu.addEventListener('click', () => {
         const sehir = sehirGirdisi.value.trim();
         if (sehir) {
-             // Şehir adı ile arama yaparken sadece şehir adını gönderelim.
-             // Backend koordinatları bulacaktır.
             havaDurumuGetir(sehir);
         } else {
             hataGoster("Lütfen bir şehir adı girin.");
-            arayuzuTemizle(false); // Arka plan kalsın
+            arayuzuTemizle(false);
         }
-        oneriListesi.style.display = 'none'; // Arama sonrası önerileri gizle
-        sehirGirdisi.blur(); // Odaklamayı kaldır
+        oneriListesi.style.display = 'none';
+        sehirGirdisi.blur();
     });
 
     sehirGirdisi.addEventListener('keypress', (olay) => {
         if (olay.key === 'Enter') {
-            aramaButonu.click(); // Enter'a basılınca arama yap
+            aramaButonu.click();
         }
     });
 
@@ -365,17 +409,14 @@ document.addEventListener('DOMContentLoaded', () => {
         beklet(() => onerileriGetir(sorgu), BEKLETME_GECIKMESI);
     });
 
-    // Öneri listesi dışına tıklanınca kapatma (aynı kalabilir)
     sehirGirdisi.addEventListener('blur', () => {
         setTimeout(() => {
-            // Eğer fare hala öneri listesi üzerindeyse kapatma
             if (!oneriListesi.matches(':hover')) {
                 oneriListesi.style.display = 'none';
             }
-        }, 200); // Kısa bir gecikme ile tıklama olayına şans ver
+        }, 200);
     });
 
-    // Sayfanın herhangi bir yerine tıklanınca önerileri kapat (girdi alanı ve liste hariç)
     document.addEventListener('click', (olay) => {
         if (!sehirGirdisi.contains(olay.target) && !oneriListesi.contains(olay.target) && !aramaButonu.contains(olay.target)) {
             oneriListesi.style.display = 'none';
@@ -383,36 +424,38 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
 
-    // --- Başlangıç Yüklemesi ---
+    // --- Başlangıç Yüklemesi (Hata Yönetimi İyileştirildi) ---
 
     function baslangicKonumunuAlVeGetir() {
-        yukleniyorYerTutuculariGoster(); // Başlangıçta yükleniyor göster
+        yukleniyorYerTutuculariGoster();
         if ("geolocation" in navigator) {
             navigator.geolocation.getCurrentPosition(
                 (konum) => {
                     const { latitude: enlem, longitude: boylam } = konum.coords;
                     console.log(`Konum alındı: ${enlem}, ${boylam}. Hava durumu getiriliyor...`);
-                    // Konum alındığında koordinatlarla istek gönder
                     havaDurumuGetir(null, '', enlem, boylam);
                 },
                 (hata) => {
                     console.warn("Konum alınamadı:", hata.message, ". Varsayılan şehir (Ankara) kullanılıyor.");
-                     hataGoster("Konum izni alınamadı veya bulunamadı."); // Daha net hata mesajı
-                     // Kullanıcıya varsayılanı gösterdiğimizi belirtelim
-                     sehirAdiElementi.textContent = 'Varsayılan: Ankara'; // Yükleniyor yerine
-                     setTimeout(() => { // Küçük bir gecikme ile varsayılanı getir
+                    // Hata göster, ancak yükleniyor durumundan sonra temizle
+                    hataGoster(`Konum izni reddedildi veya alınamadı (Hata: ${hata.code}). Varsayılan konuma geçiliyor: Ankara.`);
+                    // Belki yükleniyor göstergesini gizleyip doğrudan varsayılanı getirmek daha iyi olur
+                    // arayuzuTemizle(false); // Arka plan kalsın
+                    // sehirAdiElementi.textContent = 'Varsayılan: Ankara';
+                     setTimeout(() => { // Kullanıcının hatayı görmesi için kısa bekleme
                          havaDurumuGetir("Ankara");
-                     }, 500);
+                     }, 1500); // 1.5 saniye bekle
                 },
-                { timeout: 8000, enableHighAccuracy: false } // Timeout ve doğruluk ayarı
+                { timeout: 10000, enableHighAccuracy: false } // Timeout süresini biraz artırabiliriz
             );
         } else {
             console.log("Tarayıcı konum servisini desteklemiyor. Varsayılan şehir (Ankara) kullanılıyor.");
-             hataGoster("Konum servisi desteklenmiyor.");
-             sehirAdiElementi.textContent = 'Varsayılan: Ankara';
+             hataGoster("Tarayıcınız konum servisini desteklemiyor. Varsayılan konuma geçiliyor: Ankara.");
+             // arayuzuTemizle(false);
+             // sehirAdiElementi.textContent = 'Varsayılan: Ankara';
              setTimeout(() => {
                 havaDurumuGetir("Ankara");
-             }, 500);
+             }, 1500);
         }
     }
 
