@@ -35,7 +35,7 @@ try:
     temel_yol = os.path.dirname(os.path.abspath(__file__))
 except NameError:
     temel_yol = os.getcwd()
-VARLIK_YOLU = os.path.join(temel_yol, "assets")
+VARLIK_YOLU = os.path.join(temel_yol, "static")
 ARKA_PLAN_RESIM_YOLU = os.path.join(VARLIK_YOLU, "gifs")
 VARSAYILAN_ARKA_PLAN_RESIM_ADI = "1.jpg"
 
