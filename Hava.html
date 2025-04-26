@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hava Durumu</title>
+    <link rel="icon" type="png" href="assets/chrome_icon/weather.png">
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@200;300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="hava-durumu-konteyneri">
+
+        <div class="arama-alani-sarmalayici">
+            <div class="arama-alani">
+                <input type="text" id="sehir-girdisi" placeholder="Şehir adı ara..." autocomplete="off">
+                <button id="arama-butonu" aria-label="Ara">Ara</button>
+            </div>
+            <div id="oneri-listesi" class="oneri-listesi"></div>
+        </div>
+
+        <div class="guncel-bilgi" id="guncel-bilgi-alani" style="display: none;">
+             <div id="sehir-adi">--</div>
+             <div id="guncel-sicaklik">--°</div>
+             <div class="aciklama-ikon">
+                 <img id="guncel-ikon" src="" alt="Hava durumu ikonu" style="display: none;">
+                 <span id="guncel-aciklama">---</span>
+             </div>
+             <div id="min-maks-sicaklik">↓ --°   ↑ --°</div>
+
+             <div class="ekstra-detaylar">
+                 <div class="detay-ogesi">
+                     <span class="etiket">Hissedilen</span>
+                     <span class="deger" id="hissedilen-deger">--</span>
+                 </div>
+                 <div class="detay-ogesi">
+                     <span class="etiket">Nem</span>
+                     <span class="deger" id="nem-deger">--</span>
+                 </div>
+                 <div class="detay-ogesi">
+                     <span class="etiket">Rüzgar</span>
+                     <span class="deger" id="ruzgar-deger">--</span>
+                 </div>
+                 <div class="detay-ogesi">
+                     <span class="etiket">Görüş Mesafesi</span>
+                     <span class="deger" id="gorus-mesafesi-deger">--</span>
+                 </div>
+                  <div class="detay-ogesi">
+                     <span class="etiket">Basınç</span>
+                     <span class="deger" id="basinc-deger">--</span>
+                 </div>
+
+                 <div class="detay-ogesi">
+                     <span class="etiket">Gün Doğumu</span>
+                     <span class="deger" id="gun-dogumu-deger">--:--</span>
+                 </div>
+                 <div class="detay-ogesi">
+                     <span class="etiket">Gün Batımı</span>
+                     <span class="deger" id="gun-batimi-deger">--:--</span>
+                 </div>
+
+                  <div class="detay-ogesi" id="hki-konteyneri" style="display: none; grid-column: span 2;">
+                     <span class="etiket">Hava Kalitesi</span>
+                     <span class="deger" id="hki-deger">--</span>
+                 </div>
+             </div>
+        </div>
+
+        <div class="tahmin-alani">
+            <div class="tahmin-blogu saatlik-blok" id="saatlik-tahmin-blogu" style="display: none;">
+                 <h2>Sonraki 24 Saat (3 Saatlik Aralıklarla)</h2>
+                 <div class="saatlik-ogeler kaydirilabilir" id="saatlik-ogeler-konteyneri">
+
+                      <div class="yukleniyor-yer-tutucu">Yükleniyor...</div>
+                 </div>
+            </div>
+
+            <div class="tahmin-blogu gunluk-blok" id="gunluk-tahmin-blogu" style="display: none;">
+                 <h2>5 Günlük Tahmin</h2>
+                 <div class="gunluk-ogeler" id="gunluk-ogeler-konteyneri">
+
+                      <div class="yukleniyor-yer-tutucu">Yükleniyor...</div>
+                 </div>
+                 <hr>
+                 <p class="ozm"><span style="color: rgb(5, 240, 162);">YU</span><span style="color: rgb(255, 255, 255);">SOFT</span> <sup>®</sup> | Tamerlan Yusubov</p>
+            </div>
+        </div>
+
+         <div id="hata-mesaji" class="hata-mesaji" style="display: none;"></div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
